@@ -1,6 +1,7 @@
 var fs = require('fs');
 var path = require('path');
 var _ = require('underscore');
+var http = require('http-request');
 var helpers = require('../web/http-helpers');
 
 /*
@@ -26,19 +27,23 @@ exports.initialize = function(pathsObj){
 // The following function names are provided to you to suggest how you might
 // modularize your code. Keep it clean!
 
-exports.renderFile = function (file, res) {
+exports.renderFile = function (file, res, statusCode) {
   fs.readFile(file, {encoding: 'utf8'}, function (err, html) {
-    res._responseCode = 200;
-    res._headers = helpers.headers;
-    res._data = html;
-    res.writeHead(res._responseCode, res._headers);
-    res.end(res._data);
+    if (err) {
+      res.writeHead(statusCode, helpers.headers);
+      res.end();
+    } else {
+      res.writeHead(statusCode, helpers.headers);
+      res.end(html);
+    }
   });
 };
 
 exports.readListOfUrls = function(callback){
   fs.readFile(exports.paths.list, {encoding: 'utf8'}, function (err, websites) {
-    return callback(websites);
+    if (!err) {
+      return callback(websites.split('\n'));
+    }
   });
 };
 
@@ -46,16 +51,41 @@ exports.isUrlInList = function(url, sites){
   return sites.indexOf(url);
 };
 
-exports.addUrlToList = function(url){
-  fs.appendFile(exports.paths.list, url, function (err) {
-    console.log(url)
-    if (err) console.log('Error happened');
-    console.log('The "data to append" was appended to file!');
+exports.addUrlToList = function(url, callback){
+  console.log('----url is ', url);
+  fs.appendFile(exports.paths.list, url+'\n', function (err) {
+    if (err){
+      console.log('Error happened');
+    } else {
+      return callback(url);
+    }
   });
 };
 
-exports.isURLArchived = function(){
+exports.isURLArchived = function(url, callback){
+  fs.readdir(exports.paths.archivedSites, function(err, files){
+    // console.log('url', url, 'files', files);
+    return callback(exports.isUrlInList(url, files));
+  });
 };
 
-exports.downloadUrls = function(){
+exports.downloadUrls = function(url){
+  // if (url.match('.com')) {
+    // console.log('----url is----', url);
+    http.get(url, function (err, html) {
+      if (!err) {
+        // console.log('no error');
+        var text = html.buffer.toString();
+        fs.appendFile(path.join(exports.paths.archivedSites, url), text, function (err) {
+          if (err) {
+            // console.log('error happened.');
+          } else {
+            console.log('File was saved!');
+          }
+        });
+      } else {
+        // console.log('you have an err');
+      }
+    });
+  // }
 };
